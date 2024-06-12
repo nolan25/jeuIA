@@ -222,6 +222,18 @@ def draw_victory_message(screen, message, width, height):
     victory_img = font.render(message, True, (255, 255, 255))
     screen.blit(victory_img, (width // 2 - 100, height // 2 - 24))
 
+def tuePlayerUnite():
+    print("sa tue")
+    return
+
+def appellerAide():
+    print("à l'aide")
+    return
+
+def goObjectif():
+    print("GO Objo !")
+    
+    return
 
 def enemiIA(units, objectives, taille):
     #declaration de la matrix
@@ -237,16 +249,23 @@ def enemiIA(units, objectives, taille):
         else:
             matrix[elt["y"]][elt["x"]] = 2
     print(matrix)
-    # directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-    # nbr = 0
-    # for u in units:
-    #     if u.color == PLAYER_COLOR:
-    #         for dx, dy in directions:
-    #             nx, ny = u.x + dx, u.y + dy
-    #             if 0 <= nx < size and 0 <= ny < size:
-    #                 unit = matrix[nx][ny]
-    #                 if unit == 7:
-    #                     nbr =+ 1
+    rayon = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    nbr = 0
+    for u in units:
+        if u.color == PLAYER_COLOR:
+            for dx, dy in rayon:
+                nx, ny = u.x + dx, u.y + dy
+                if 0 <= nx < size and 0 <= ny < size:
+                    unit = matrix[nx][ny]
+                    if unit == 7:
+                        nbr =+ 1
+        if nbr > 1:
+            tuePlayerUnite()
+        elif nbr == 1:
+            appellerAide()
+        else:
+            goObjectif()
+
 # Configuration de la fenêtre
 screen = pygame.display.set_mode((width, height + interface_height))
 pygame.display.set_caption("Carte de 20x20 avec unités et déplacement")

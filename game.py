@@ -7,8 +7,9 @@ pygame.init()
 # Dimensions de la fenêtre et de la carte
 tile_size = 30
 size = 20
-width, height = size * tile_size + 300, size * tile_size
+width, height = size * tile_size, size * tile_size
 interface_height = 100  # Hauteur supplémentaire pour l'interface
+scoreWin = 500
 
 # Couleurs
 PASSABLE_COLOR = (200, 200, 200)        # Gris clair pour les cases passables
@@ -98,13 +99,14 @@ class Unit:
 # Générer la carte
 def generate_map(size):
     """Génère une carte de taille spécifiée."""
+    #print([[1 for _ in range(size)] for _ in range(size)])
     return [[1 for _ in range(size)] for _ in range(size)]
 
 # Afficher la carte
 def draw_map(screen, game_map, tile_size):
     """Affiche la carte."""
-    for y in range(len(game_map)):
-        for x in range(len(game_map[y])):
+    for y in range(size):
+        for x in range(size):
             color = PASSABLE_COLOR
             pygame.draw.rect(screen, color, (x * tile_size, y * tile_size, tile_size, tile_size))
 
@@ -115,8 +117,8 @@ def generate_units():
     player_positions = [(0, i) for i in range(size)]
     enemy_positions = [(size - 1, i) for i in range(size)]
 
-    player_positions = random.sample(player_positions, 7)
-    enemy_positions = random.sample(enemy_positions, 7)
+    player_positions = random.sample(player_positions, 5)
+    enemy_positions = random.sample(enemy_positions, 5)
 
     player_units = [Unit(*pos, PLAYER_COLOR) for pos in player_positions]
     enemy_units = [Unit(*pos, ENEMY_COLOR) for pos in enemy_positions]
@@ -220,46 +222,31 @@ def draw_victory_message(screen, message, width, height):
     victory_img = font.render(message, True, (255, 255, 255))
     screen.blit(victory_img, (width // 2 - 100, height // 2 - 24))
 
-# Fonction IA pour le mouvement ennemi avec une stratégie
-def ai_move(units, objectives):
-    """Déplace les unités ennemies avec une stratégie d'IA."""
-    for unit in units:
-        if unit.color == ENEMY_COLOR and not unit.moved:
-            possible_moves = [(unit.x + dx, unit.y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if unit.can_move(unit.x + dx, unit.y + dy)]
-            best_move = None
-            best_score = -float('inf')
 
-            for move in possible_moves:
-                score = 0
-
-                # Score pour capturer des objectifs
-                for obj in objectives:
-                    if obj['x'] == move[0] and obj['y'] == move[1]:
-                        score += 3 if obj['type'] == 'MAJOR' else 1
-
-                # Score pour attaquer les unités du joueur
-                for u in units:
-                    if u.color == PLAYER_COLOR and u.x == move[0] and u.y == move[1]:
-                        score += 5  # Attaque une unité joueur
-
-                # Favoriser la proximité des objectifs
-                closest_objective_distance = min([abs(obj['x'] - move[0]) + abs(obj['y'] - move[1]) for obj in objectives])
-                score += (5 - closest_objective_distance)  # Plus près des objectifs
-
-                if score > best_score:
-                    best_score = score
-                    best_move = move
-
-            if best_move:
-                # Vérifier s'il y a une unité ennemie pour attaquer
-                target_unit = next((u for u in units if u.color == PLAYER_COLOR and u.x == best_move[0] and u.y == best_move[1]), None)
-                if target_unit:
-                    unit.attack(target_unit, units, objectives)
-                else:
-                    unit.move(best_move[0], best_move[1])
-
-        
-
+def enemiIA(units, objectives, taille):
+    #declaration de la matrix
+    matrix = [[0 for _ in range(taille)] for _ in range(taille)]
+    for u in units:
+        if u.color == PLAYER_COLOR:
+            matrix[u.y][u.x] = 3
+        elif u.color == ENEMY_COLOR and not u.moved:
+            matrix[u.y][u.x] = 7
+    for elt in objectives:
+        if elt["type"] == "MINOR":
+            matrix[elt["y"]][elt["x"]] = 1
+        else:
+            matrix[elt["y"]][elt["x"]] = 2
+    print(matrix)
+    # directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    # nbr = 0
+    # for u in units:
+    #     if u.color == PLAYER_COLOR:
+    #         for dx, dy in directions:
+    #             nx, ny = u.x + dx, u.y + dy
+    #             if 0 <= nx < size and 0 <= ny < size:
+    #                 unit = matrix[nx][ny]
+    #                 if unit == 7:
+    #                     nbr =+ 1
 # Configuration de la fenêtre
 screen = pygame.display.set_mode((width, height + interface_height))
 pygame.display.set_caption("Carte de 20x20 avec unités et déplacement")
@@ -287,11 +274,13 @@ while running:
     if not victory:
         unit_moved = False
         for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    unit_moved = True
             if event.type == pygame.QUIT:
                 running = False
+            elif player_turn == False:
+                enemiIA(units, objectives,size)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    unit_moved = True
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = event.pos
                 if end_turn_button_clicked((x, y), width, height, interface_height):
@@ -311,6 +300,7 @@ while running:
                                 selected_unit = possible_units[0]
                         if selected_unit:
                             selected_unit.selected = True
+
                     elif event.button == 3:  # Clic droit pour déplacer ou attaquer
                         if selected_unit and selected_unit.color == (PLAYER_COLOR if player_turn else ENEMY_COLOR):
                             target_unit = [u for u in units if u.x == grid_x and u.y == grid_y and u.color != selected_unit.color]
@@ -333,10 +323,10 @@ while running:
             player_score += player_score_turn
             enemy_score += enemy_score_turn
 
-            if player_score >= 50:
+            if player_score >= scoreWin:
                 victory = True
                 victory_message = "Victoire Joueur!"
-            elif enemy_score >= 50:
+            elif enemy_score >= scoreWin:
                 victory = True
                 victory_message = "Victoire Ennemi!"
             elif not any(unit.color == PLAYER_COLOR for unit in units):
@@ -346,12 +336,7 @@ while running:
                 victory = True
                 victory_message = "Victoire Joueur!"
 
-            if not player_turn:
-                ai_move(units, objectives)
-                player_turn = not player_turn
-
             pygame.display.flip()
-
 
     screen.fill((0, 0, 0))
     draw_map(screen, game_map, tile_size)

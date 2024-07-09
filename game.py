@@ -226,9 +226,65 @@ def tuePlayerUnite():
     print("sa tue")
     return
 
-def appellerAide():
-    print("à l'aide")
-    return
+def appellerAide(unit, units, objectives, taille):
+    # Définir un rayon de recherche pour une position sécurisée ou un objectif mineur
+    search_radius = 3
+    potential_positions = []
+
+    # Rechercher des positions sécurisées ou des objectifs mineurs à proximité
+    for dy in range(-search_radius, search_radius + 1):
+        for dx in range(-search_radius, search_radius + 1):
+            nx, ny = unit.x + dx, unit.y + dy
+            if 0 <= nx < taille and 0 <= ny < taille:
+                # Vérifier s'il y a un objectif mineur à cette position
+                if any(obj['x'] == nx and obj['y'] == ny and obj['type'] == 'MINOR' for obj in objectives):
+                    potential_positions.append((nx, ny))
+                # Ajouter la position si elle est vide
+                elif not any(u.x == nx and u.y == ny for u in units):
+                    potential_positions.append((nx, ny))
+    
+    # Si des positions potentielles sont trouvées, déplacer l'unité vers la première position trouvée
+    if potential_positions:
+        target_x, target_y = potential_positions[0]
+        unit.move(target_x, target_y)
+        unit.moved = True
+        print(f"Unité en ({unit.x}, {unit.y}) a appelé à l'aide et s'est déplacée vers ({target_x}, {target_y}).")
+    else:
+        print(f"Unité en ({unit.x}, {unit.y}) a appelé à l'aide mais n'a trouvé aucune position sécurisée.")
+
+# Modification de la fonction enemiIA pour appeler appellerAide
+def enemiIA(units, objectives, taille):
+    # Déclaration de la matrice
+    matrix = [[0 for _ in range(taille)] for _ in range(taille)]
+    for u in units:
+        if u.color == PLAYER_COLOR:
+            matrix[u.y][u.x] = 3
+        elif u.color == ENEMY_COLOR and not u.moved:
+            matrix[u.y][u.x] = 7
+    for elt in objectives:
+        if elt["type"] == "MINOR":
+            matrix[elt["y"]][elt["x"]] = 1
+        else:
+            matrix[elt["y"]][elt["x"]] = 2
+
+    print(matrix)
+    rayon = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    nbr = 0
+    for u in units:
+        if u.color == PLAYER_COLOR:
+            for dx, dy in rayon:
+                nx, ny = u.x + dx, u.y + dy
+                if 0 <= nx < taille and 0 <= ny < taille:
+                    unit = matrix[ny][nx]
+                    if unit == 7:
+                        nbr += 1
+        elif u.color == ENEMY_COLOR and not u.moved:
+            if nbr > 1:
+                tuePlayerUnite()
+            elif nbr == 1:
+                appellerAide(u, units, objectives, taille)
+            else:
+                goObjectif()
 
 def goObjectif():
     print("GO Objo !")

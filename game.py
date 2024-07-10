@@ -5,11 +5,11 @@ import random
 pygame.init()
 
 # Dimensions de la fenêtre et de la carte
+scorewin = 500
 tile_size = 30
 size = 20
 width, height = size * tile_size, size * tile_size
 interface_height = 100  # Hauteur supplémentaire pour l'interface
-scoreWin = 500
 
 # Couleurs
 PASSABLE_COLOR = (200, 200, 200)        # Gris clair pour les cases passables
@@ -81,11 +81,13 @@ class Unit:
                     units.remove(target_unit)
                     return
 
-            if not (0 <= new_x < size and 0 <= new_y < size) or any(u.x == new_x and u.y == new_y and u.color != target_unit.color for u in units):
+            if not (0 <= new_x < size and 0 <= new_y < size) or any(u.x == new_x and u.y == new_y for u in units):
                 units.remove(target_unit)
             else:
                 target_unit.move(new_x, new_y)
+                self.move(target_unit.x, target_unit.y)
                 target_unit.attacked_this_turn = True
+
 
     def get_symbols_on_same_tile(self, units):
         """Retourne les symboles des unités sur la même case."""
@@ -99,7 +101,6 @@ class Unit:
 # Générer la carte
 def generate_map(size):
     """Génère une carte de taille spécifiée."""
-    #print([[1 for _ in range(size)] for _ in range(size)])
     return [[1 for _ in range(size)] for _ in range(size)]
 
 # Afficher la carte
@@ -222,39 +223,89 @@ def draw_victory_message(screen, message, width, height):
     victory_img = font.render(message, True, (255, 255, 255))
     screen.blit(victory_img, (width // 2 - 100, height // 2 - 24))
 
-def tuePlayerUnite():
-    print("sa tue")
-    return
-
-def appellerAide(unit, units, objectives, taille):
-    # Définir un rayon de recherche pour une position sécurisée ou un objectif mineur
-    search_radius = 3
-    potential_positions = []
-
-    # Rechercher des positions sécurisées ou des objectifs mineurs à proximité
-    for dy in range(-search_radius, search_radius + 1):
-        for dx in range(-search_radius, search_radius + 1):
-            nx, ny = unit.x + dx, unit.y + dy
-            if 0 <= nx < taille and 0 <= ny < taille:
-                # Vérifier s'il y a un objectif mineur à cette position
-                if any(obj['x'] == nx and obj['y'] == ny and obj['type'] == 'MINOR' for obj in objectives):
-                    potential_positions.append((nx, ny))
-                # Ajouter la position si elle est vide
-                elif not any(u.x == nx and u.y == ny for u in units):
-                    potential_positions.append((nx, ny))
+# Fonction pour envoyer des unités vers les objectifs
+def goObjectif(units, objectives):
+    enemy_units = [unit for unit in units if unit.color == ENEMY_COLOR and not unit.moved]
     
-    # Si des positions potentielles sont trouvées, déplacer l'unité vers la première position trouvée
-    if potential_positions:
-        target_x, target_y = potential_positions[0]
-        unit.move(target_x, target_y)
-        unit.moved = True
-        print(f"Unité en ({unit.x}, {unit.y}) a appelé à l'aide et s'est déplacée vers ({target_x}, {target_y}).")
-    else:
-        print(f"Unité en ({unit.x}, {unit.y}) a appelé à l'aide mais n'a trouvé aucune position sécurisée.")
+    # Privilégier l'attaque des unités ennemies
+    for unit in enemy_units:
+        adjacent_enemies = [u for u in units if u.color == PLAYER_COLOR and abs(unit.x - u.x) <= 1 and abs(unit.y - u.y) <= 1]
+        
+        if adjacent_enemies:
+            for enemy in adjacent_enemies:
+                if unit.can_move(enemy.x, enemy.y):
+                    unit.attack(enemy, units, objectives)
+            continue
 
-# Modification de la fonction enemiIA pour appeler appellerAide
+    # Assigner des unités aux objectifs restants
+    assigned_units = []
+    for obj in objectives:
+        if enemy_units:
+            closest_unit = min(enemy_units, key=lambda unit: abs(unit.x - obj['x']) + abs(unit.y - obj['y']))
+            assigned_units.append(closest_unit)
+            enemy_units.remove(closest_unit)
+            dx = obj['x'] - closest_unit.x
+            dy = obj['y'] - closest_unit.y
+            move_x = closest_unit.x + (1 if dx > 0 else -1 if dx < 0 else 0)
+            move_y = closest_unit.y + (1 if dy > 0 else -1 if dy < 0 else 0)
+            if closest_unit.can_move(move_x, move_y):
+                closest_unit.move(move_x, move_y)
+    
+    # Envoyer le reste des unités au centre de la carte
+    center_x, center_y = size // 2, size // 2
+    for unit in enemy_units:
+        dx = center_x - unit.x
+        dy = center_y - unit.y
+        move_x = unit.x + (1 if dx > 0 else -1 if dx < 0 else 0)
+        move_y = unit.y + (1 if dy > 0 else -1 if dy < 0 else 0)
+        if unit.can_move(move_x, move_y):
+            unit.move(move_x, move_y)
+
+
+def appellerAide(units):
+    for unit in units:
+        if unit.color == ENEMY_COLOR:
+            enemies_in_range = [u for u in units if u.color == PLAYER_COLOR and abs(unit.x - u.x) <= 1 and abs(unit.y - u.y) <= 1]
+            if len(enemies_in_range) == 1:
+                ally_in_range = [u for u in units if u.color == ENEMY_COLOR and abs(unit.x - u.x) <= 2 and abs(unit.y - u.y) <= 2 and u != unit]
+                if ally_in_range:
+                    closest_ally = min(ally_in_range, key=lambda u: abs(unit.x - u.x) + abs(unit.y - u.y))
+                    dx = unit.x - closest_ally.x
+                    dy = unit.y - closest_ally.y
+                    move_x = closest_ally.x + (1 if dx < 0 else -1 if dx > 0 else 0)
+                    move_y = closest_ally.y + (1 if dy < 0 else -1 if dy > 0 else 0)
+                    if closest_ally.can_move(move_x, move_y):
+                        closest_ally.move(move_x, move_y)
+
+
+def tuePlayerUnite(units):
+    for unit in units:
+        if unit.color == ENEMY_COLOR:
+            enemies_in_range = [u for u in units if u.color == PLAYER_COLOR and abs(unit.x - u.x) <= 1 and abs(unit.y - u.y) <= 1]
+            if len(enemies_in_range) == 1:
+                target_unit = enemies_in_range[0]
+                allies_in_range = [u for u in units if u.color == ENEMY_COLOR and abs(target_unit.x - u.x) <= 1 and abs(target_unit.y - u.y) <= 1 and u != unit]
+                if len(allies_in_range) >= 1:
+                    dx = target_unit.x - unit.x
+                    dy = target_unit.y - unit.y
+                    new_x, new_y = target_unit.x + dx, target_unit.y + dy
+
+                    if target_unit.attacked_this_turn:
+                        target_unit.pv -= 1
+                        if target_unit.pv <= 0:
+                            units.remove(target_unit)
+                            return
+
+                    if not (0 <= new_x < size and 0 <= new_y < size) or any(u.x == new_x and u.y == new_y for u in units):
+                        units.remove(target_unit)
+                    else:
+                        target_unit.move(new_x, new_y)
+                        unit.move(target_unit.x, target_unit.y)
+                        target_unit.attacked_this_turn = True
+
+
+# Fonction principale pour gérer l'IA ennemie
 def enemiIA(units, objectives, taille):
-    # Déclaration de la matrice
     matrix = [[0 for _ in range(taille)] for _ in range(taille)]
     for u in units:
         if u.color == PLAYER_COLOR:
@@ -266,61 +317,26 @@ def enemiIA(units, objectives, taille):
             matrix[elt["y"]][elt["x"]] = 1
         else:
             matrix[elt["y"]][elt["x"]] = 2
-
-    print(matrix)
-    rayon = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-    nbr = 0
+    
+    rayon = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    
     for u in units:
         if u.color == PLAYER_COLOR:
+            nbr = 0
             for dx, dy in rayon:
                 nx, ny = u.x + dx, u.y + dy
                 if 0 <= nx < taille and 0 <= ny < taille:
                     unit = matrix[ny][nx]
                     if unit == 7:
                         nbr += 1
-        elif u.color == ENEMY_COLOR and not u.moved:
+            
             if nbr > 1:
-                tuePlayerUnite()
+                tuePlayerUnite(units)
             elif nbr == 1:
-                appellerAide(u, units, objectives, taille)
+                appellerAide(units)
             else:
-                goObjectif()
+                goObjectif(units, objectives)
 
-def goObjectif():
-    print("GO Objo !")
-    
-    return
-
-def enemiIA(units, objectives, taille):
-    #declaration de la matrix
-    matrix = [[0 for _ in range(taille)] for _ in range(taille)]
-    for u in units:
-        if u.color == PLAYER_COLOR:
-            matrix[u.y][u.x] = 3
-        elif u.color == ENEMY_COLOR and not u.moved:
-            matrix[u.y][u.x] = 7
-    for elt in objectives:
-        if elt["type"] == "MINOR":
-            matrix[elt["y"]][elt["x"]] = 1
-        else:
-            matrix[elt["y"]][elt["x"]] = 2
-    print(matrix)
-    rayon = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-    nbr = 0
-    for u in units:
-        if u.color == PLAYER_COLOR:
-            for dx, dy in rayon:
-                nx, ny = u.x + dx, u.y + dy
-                if 0 <= nx < size and 0 <= ny < size:
-                    unit = matrix[nx][ny]
-                    if unit == 7:
-                        nbr =+ 1
-        if nbr > 1:
-            tuePlayerUnite()
-        elif nbr == 1:
-            appellerAide()
-        else:
-            goObjectif()
 
 # Configuration de la fenêtre
 screen = pygame.display.set_mode((width, height + interface_height))
@@ -349,13 +365,11 @@ while running:
     if not victory:
         unit_moved = False
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif player_turn == False:
-                enemiIA(units, objectives,size)
-            elif event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     unit_moved = True
+            if event.type == pygame.QUIT:
+                running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = event.pos
                 if end_turn_button_clicked((x, y), width, height, interface_height):
@@ -394,14 +408,18 @@ while running:
                 unit.attacked_this_turn = False  # Réinitialiser l'indicateur d'attaque
             player_turn = not player_turn
             units_to_move = [unit for unit in units if (unit.color == PLAYER_COLOR if player_turn else unit.color == ENEMY_COLOR)]
+            
+            if not player_turn:  # C'est le tour de l'IA ennemie
+                enemiIA(units, objectives, size)  # Passer la taille ici
+            
             player_score_turn, enemy_score_turn = calculate_scores(units, objectives)
             player_score += player_score_turn
             enemy_score += enemy_score_turn
 
-            if player_score >= scoreWin:
+            if player_score >= scorewin:
                 victory = True
                 victory_message = "Victoire Joueur!"
-            elif enemy_score >= scoreWin:
+            elif enemy_score >= scorewin:
                 victory = True
                 victory_message = "Victoire Ennemi!"
             elif not any(unit.color == PLAYER_COLOR for unit in units):
